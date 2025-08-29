@@ -34,6 +34,7 @@ class myPromise {
     }
     resolve(data) {
         this.setState(FULFILLED, data)
+
     }
     reject(reason) {
         this.setState(REJECTED, reason)
@@ -69,7 +70,6 @@ class myPromise {
                 microTask(() => {
                     try {
                         let res = fn(this.value)
-                        
                         if (promiseLike(res))
                             res.then(resolve, reject)
                         else
@@ -77,6 +77,7 @@ class myPromise {
 
                     } catch (error) {
                         reject(error)
+
                     }
                 })
             }
@@ -100,33 +101,103 @@ class myPromise {
 
     //finally有一些不同finally返回的promise状态和值都与前一个相同，不会受到其执行函数的影响
     finally(onSattled) {
-        return this.then((data)=>{
+        return this.then((data) => {
             onSattled(data);
             return data;
-        }, (err)=>{
+        }, (err) => {
             onSattled(err)
             throw new Error(err)
         })
     }
 
-    // static resolve(data) {
-    //     return new myPromise((resolve, reject) => {
-    //         resolve(data)
-    //     })
-    // }
+    static resolve(data) {
+        if (data instanceof myPromise)
+            return data
+        return new myPromise((resolve, reject) => {
+            if (promiseLike(data))
+                data.then(resolve, reject)
+            else
+                resolve(data)
+        })
+    }
+
+    static reject(reason) {
+        return new myPromise((resolve, reject) => {
+            reject(reason)
+        })
+    }
+
+    static all(proms) {
+        return new myPromise((resolve, reject) => {
+            let fulfilledCount = 0;
+            let res = new Array(proms.length);
+            for (let i = 0; i < proms.length; i++) {
+                let index = i;
+                myPromise.resolve(proms[i]).then((data) => {
+                    fulfilledCount++;
+                    res[index] = data;
+                    if (fulfilledCount === proms.length) {
+                        resolve(res)
+                    }
+                }, (reason) => {
+                    reject(reason)
+                })
+            }
+        })
+    }
+
+    static race(proms) {
+        return new myPromise((resolve, reject) => {
+            proms.forEach(pro => {
+                pro.then((data) => {
+                    resolve(data)
+                }, (reason) => {
+                    reject(reason)
+                })
+            });
+        })
+
+    }
+
+    static allSettled(proms) {
+        
+        return new myPromise((resolve) => {
+            let res = [];
+            let settledCount=0
+            for (let i = 0; i < proms.length; i++) {
+                const pro = myPromise.resolve(proms[i]);
+                let index = i;
+                pro.then((data) => {
+                    res[i] = { state: FULFILLED, value: data }
+                }, (reason) => {
+                    res[i] = { state: REJECTED, value: reason }
+                }).finally(()=>{
+                    settledCount++;
+                    if(settledCount===proms.length)
+                    {
+                        resolve(res)
+                    }
+                })
+
+            }
+        })
+    }
 }
 
+let p = myPromise.allSettled([new myPromise((resolve, reject) => {
+    setTimeout(() => {
+        resolve(2121)
+    }, 1000);
+}), myPromise.reject(2)])
 
-let pro1 = new myPromise((resolve, reject) => {
-    reject(1)
-}).finally((d) => {
-    console.log("finally", d);
+p.then((data)=>{
+    console.log(data);
 })
 
 
-setTimeout(() => {
-    console.log(pro1);
-}, 100)
+
+
+
 
 
 
